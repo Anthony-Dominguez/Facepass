@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+deepface
+opencv-python
+numpy
+bcrypt
+python-dotenv
+sqlalchemy
+python-jose
+python-multipart
+cryptography
