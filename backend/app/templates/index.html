@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DeepFace Auth Demo</title>
+  <style>
+    :root {
+      font-family: Arial, sans-serif;
+      color: #222;
+      background-color: #f5f5f5;
+    }
+    body {
+      margin: 0;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
+    }
+    h1 {
+      margin: 0;
+    }
+    .card {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      padding: 1.5rem;
+      max-width: 420px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .mode-toggle {
+      display: flex;
+      gap: 0.5rem;
+    }
+    button {
+      padding: 0.6rem 1rem;
+      border-radius: 6px;
+      border: none;
+      background-color: #2563eb;
+      color: #fff;
+      cursor: pointer;
+    }
+    button.secondary {
+      background-color: #4b5563;
+    }
+    button.danger {
+      background-color: #dc2626;
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+    input {
+      width: 100%;
+      padding: 0.6rem;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+    }
+    video, canvas {
+      max-width: 420px;
+      width: 100%;
+      border-radius: 8px;
+      background: #111;
+    }
+    .status {
+      padding: 0.75rem;
+      width: 100%;
+      max-width: 420px;
+      border-radius: 6px;
+      box-sizing: border-box;
+    }
+    .status.success {
+      background-color: #dcfce7;
+      color: #166534;
+    }
+    .status.error {
+      background-color: #fee2e2;
+      color: #991b1b;
+    }
+    pre {
+      background-color: #111827;
+      color: #f9fafb;
+      padding: 1rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.85rem;
+    }
+    .vault-form {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .vault-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .vault-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .vault-table th,
+    .vault-table td {
+      padding: 0.6rem;
+      border-bottom: 1px solid #e5e7eb;
+      text-align: left;
+    }
+    .vault-table tbody tr:hover {
+      background-color: #f9fafb;
+    }
+    .vault-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <h1>Face Login Demo</h1>
+  <div class="card" id="authCard">
+    <div class="mode-toggle">
+      <button id="registerBtn">Register</button>
+      <button id="loginBtn" class="secondary">Login</button>
+    </div>
+    <div id="usernameGroup">
+      <label for="username">Username</label>
+      <input type="text" id="username" placeholder="jane.doe" autocomplete="username">
+    </div>
+    <div>
+      <label for="password">Password</label>
+      <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button id="submitBtn">Capture &amp; Submit</button>
+  </div>
+
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="canvas" width="640" height="480" hidden></canvas>
+
+  <div id="status" class="status" hidden></div>
+
+  <div class="card">
+    <h2>Example requests</h2>
+    <p>Replace <code>&lt;TOKEN&gt;</code> with the JWT returned from login.</p>
+    <pre>
+curl -X POST http://localhost:8000/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"alice","password":"secret","image_base64":"data:image/jpeg;base64,..."}'
+
+curl -X POST http://localhost:8000/login \
+  -H "Content-Type: application/json" \
+  -d '{"password":"secret","image_base64":"data:image/jpeg;base64,..."}'
+
+curl http://localhost:8000/me \
+  -H "Authorization: Bearer &lt;TOKEN&gt;"
+    </pre>
+  </div>
+
+  <div class="card hidden" id="vaultSection">
+    <div class="vault-row">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 style="margin: 0;">Password Vault</h2>
+        <button id="logoutBtn" class="secondary">Logout</button>
+      </div>
+      <form id="vaultForm" class="vault-form">
+        <div>
+          <label for="vaultName">Label</label>
+          <input type="text" id="vaultName" placeholder="Email account" autocomplete="off" required>
+        </div>
+        <div>
+          <label for="vaultUsername">Username</label>
+          <input type="text" id="vaultUsername" placeholder="you@example.com" autocomplete="off" required>
+        </div>
+        <div>
+          <label for="vaultPassword">Password</label>
+          <input type="text" id="vaultPassword" placeholder="Enter password to store" autocomplete="new-password" required>
+        </div>
+        <button type="submit" id="vaultSubmitBtn">Save Password</button>
+      </form>
+      <div id="vaultEmptyState">No saved passwords yet.</div>
+      <table class="vault-table hidden" id="vaultTable">
+        <thead>
+          <tr>
+            <th>Label</th>
+            <th>Username</th>
+            <th>Saved</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="vaultTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const submitBtn = document.getElementById("submitBtn");
+    const registerBtn = document.getElementById("registerBtn");
+    const loginBtn = document.getElementById("loginBtn");
+    const statusBox = document.getElementById("status");
+    const usernameGroup = document.getElementById("usernameGroup");
+    const usernameInput = document.getElementById("username");
+    const passwordInput = document.getElementById("password");
+    const authCard = document.getElementById("authCard");
+    const vaultSection = document.getElementById("vaultSection");
+    const vaultForm = document.getElementById("vaultForm");
+    const vaultNameInput = document.getElementById("vaultName");
+    const vaultUsernameInput = document.getElementById("vaultUsername");
+    const vaultPasswordInput = document.getElementById("vaultPassword");
+    const vaultTable = document.getElementById("vaultTable");
+    const vaultTableBody = document.getElementById("vaultTableBody");
+    const vaultEmptyState = document.getElementById("vaultEmptyState");
+    const logoutBtn = document.getElementById("logoutBtn");
+
+    let currentMode = "register";
+    let authToken = null;
+
+    function setStatus(message, type = "success") {
+      statusBox.textContent = message;
+      statusBox.className = `status ${type}`;
+      statusBox.hidden = false;
+    }
+
+    function clearStatus() {
+      statusBox.hidden = true;
+    }
+
+    function updateModeUI() {
+      if (currentMode === "register") {
+        registerBtn.classList.remove("secondary");
+        loginBtn.classList.add("secondary");
+        submitBtn.textContent = "Capture & Submit (Register)";
+        usernameGroup.style.display = "block";
+      } else {
+        loginBtn.classList.remove("secondary");
+        registerBtn.classList.add("secondary");
+        submitBtn.textContent = "Capture & Submit (Login)";
+        usernameGroup.style.display = "none";
+      }
+    }
+
+    function enterVault(token) {
+      authToken = token;
+      authCard.classList.add("hidden");
+      vaultSection.classList.remove("hidden");
+      loadVaultEntries();
+    }
+
+    function leaveVault() {
+      authToken = null;
+      vaultSection.classList.add("hidden");
+      authCard.classList.remove("hidden");
+      vaultTableBody.innerHTML = "";
+      vaultTable.classList.add("hidden");
+      vaultEmptyState.textContent = "No saved passwords yet.";
+      vaultEmptyState.classList.remove("hidden");
+    }
+
+    function renderVault(entries) {
+      vaultTableBody.innerHTML = "";
+      if (!entries.length) {
+        vaultTable.classList.add("hidden");
+        vaultEmptyState.classList.remove("hidden");
+        return;
+      }
+      vaultTable.classList.remove("hidden");
+      vaultEmptyState.classList.add("hidden");
+
+      entries.forEach((entry) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${entry.name}</td>
+          <td>${entry.username}</td>
+          <td>${new Date(entry.created_at).toLocaleString()}</td>
+          <td>
+            <div class="vault-actions">
+              <button data-action="reveal" data-id="${entry.id}">Reveal</button>
+              <button data-action="delete" data-id="${entry.id}" class="danger">Delete</button>
+            </div>
+          </td>
+        `;
+        vaultTableBody.appendChild(row);
+      });
+    }
+
+    async function loadVaultEntries() {
+      if (!authToken) return;
+      try {
+        const response = await fetch("/vault", {
+          headers: { Authorization: `Bearer ${authToken}` }
+        });
+        if (!response.ok) {
+          throw new Error("Could not load saved passwords.");
+        }
+        const entries = await response.json();
+        renderVault(entries);
+      } catch (err) {
+        setStatus(err.message, "error");
+      }
+    }
+
+    async function handleVaultSubmit(event) {
+      event.preventDefault();
+      if (!authToken) {
+        setStatus("Please login again.", "error");
+        return;
+      }
+      const name = vaultNameInput.value.trim();
+      const username = vaultUsernameInput.value.trim();
+      const password = vaultPasswordInput.value;
+      if (!name || !username || !password) {
+        setStatus("All vault fields are required.", "error");
+        return;
+      }
+
+      const saveBtn = document.getElementById("vaultSubmitBtn");
+      const originalText = saveBtn.textContent;
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Saving...";
+
+      try {
+        const response = await fetch("/vault", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${authToken}`
+          },
+          body: JSON.stringify({ name, username, password })
+        });
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.detail || "Failed to save password.");
+        }
+        vaultNameInput.value = "";
+        vaultUsernameInput.value = "";
+        vaultPasswordInput.value = "";
+        await loadVaultEntries();
+        setStatus("Password saved.", "success");
+      } catch (err) {
+        setStatus(err.message, "error");
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = originalText;
+      }
+    }
+
+    async function handleVaultTableClick(event) {
+      const button = event.target.closest("button");
+      if (!button || !authToken) return;
+      const entryId = button.dataset.id;
+      const action = button.dataset.action;
+      if (!entryId || !action) return;
+
+      if (action === "reveal") {
+        try {
+          const response = await fetch(`/vault/${entryId}`, {
+            headers: { Authorization: `Bearer ${authToken}` }
+          });
+          if (!response.ok) {
+            throw new Error("Unable to retrieve password.");
+          }
+          const data = await response.json();
+          navigator.clipboard.writeText(data.password).then(() => {
+            setStatus(`Password copied for ${data.name}.`, "success");
+          }).catch(() => {
+            setStatus(`Password: ${data.password}`, "success");
+          });
+        } catch (err) {
+          setStatus(err.message, "error");
+        }
+      } else if (action === "delete") {
+        if (!confirm("Delete this saved password?")) return;
+        try {
+          const response = await fetch(`/vault/${entryId}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${authToken}` }
+          });
+          if (!response.ok) {
+            throw new Error("Unable to delete password.");
+          }
+          await loadVaultEntries();
+          setStatus("Password deleted.", "success");
+        } catch (err) {
+          setStatus(err.message, "error");
+        }
+      }
+    }
+
+    registerBtn.addEventListener("click", () => {
+      currentMode = "register";
+      updateModeUI();
+      clearStatus();
+    });
+
+    loginBtn.addEventListener("click", () => {
+      currentMode = "login";
+      updateModeUI();
+      clearStatus();
+    });
+
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        video.srcObject = stream;
+      } catch (err) {
+        setStatus(`Camera error: ${err.message}`, "error");
+        submitBtn.disabled = true;
+      }
+    }
+
+    function captureFrame() {
+      const context = canvas.getContext("2d");
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL("image/jpeg");
+    }
+
+    async function submitForm() {
+      clearStatus();
+      const password = passwordInput.value;
+      const username = usernameInput.value.trim();
+
+      if (currentMode === "register" && !username) {
+        setStatus("Username is required for registration.", "error");
+        return;
+      }
+      if (!password) {
+        setStatus("Password is required.", "error");
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Processing...";
+
+      const imageBase64 = captureFrame();
+      const endpoint = currentMode === "register" ? "/register" : "/login";
+      const payload = currentMode === "register"
+        ? { username, password, image_base64: imageBase64 }
+        : { password, image_base64: imageBase64 };
+
+      try {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          let message = "Request failed";
+          if (data.detail) {
+            const detail = data.detail;
+            if (typeof detail === "string") {
+              message = detail;
+            } else if (Array.isArray(detail)) {
+              message = detail
+                .map((item) => item.msg || item.message || JSON.stringify(item))
+                .join(", ");
+            } else if (typeof detail === "object") {
+              message = detail.message || JSON.stringify(detail);
+            }
+          }
+          throw new Error(message);
+        }
+
+        if (data.access_token) {
+          const matchInfo = typeof data.matched !== "undefined" ? ` Face matched: ${data.matched}.` : "";
+          setStatus(`Login success!${matchInfo}`, "success");
+          enterVault(data.access_token);
+        } else {
+          setStatus(data.message || "Success!", "success");
+        }
+      } catch (err) {
+        setStatus(err.message, "error");
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = currentMode === "register"
+          ? "Capture & Submit (Register)"
+          : "Capture & Submit (Login)";
+      }
+    }
+
+    submitBtn.addEventListener("click", submitForm);
+    vaultForm.addEventListener("submit", handleVaultSubmit);
+    vaultTableBody.addEventListener("click", handleVaultTableClick);
+    logoutBtn.addEventListener("click", () => {
+      leaveVault();
+      setStatus("Logged out.", "success");
+    });
+    updateModeUI();
+    startCamera();
+  </script>
+</body>
+</html>

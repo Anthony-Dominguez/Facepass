@@ -1,0 +1,28 @@
+.DS_Store
+*.py[cod]
+*.sqlite3
+*.db
+*.log
+*.env
+.env
+.venv/
+__pycache__/
+
+# Python virtual environments
+env/
+venv/
+
+# FastAPI demo artifacts
+backend/app.db
+
+# Node/Next.js build directories
+web/node_modules/
+web/.next/
+web/out/
+
+# Local environment overrides (keep examples)
+web/.env.local
+web/.env.development.local
+web/.env.production.local
+web/.env.test.local
+!web/.env*.example
