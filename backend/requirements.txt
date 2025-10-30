@@ -11,3 +11,4 @@ python-multipart
 cryptography
 slowapi
 tf-keras
+scikit-learn

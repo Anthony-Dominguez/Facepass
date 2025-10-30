@@ -1,3 +1,3 @@
-from . import face, security, vault
+from . import face, face_search, security, vault
 
-__all__ = ["face", "security", "vault"]
+__all__ = ["face", "face_search", "security", "vault"]
