@@ -9,3 +9,5 @@ sqlalchemy
 python-jose
 python-multipart
 cryptography
+slowapi
+tf-keras

@@ -1,14 +1,21 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from .api import auth, root, vault
 from .core import config
+from .core.rate_limit import limiter
 from .db.session import Base, engine
 from .models import Credential, User  # noqa: F401  (register models)
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="DeepFace Auth Demo")
+
+    # Add rate limiter to app state
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     app.add_middleware(
         CORSMiddleware,

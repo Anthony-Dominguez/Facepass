@@ -1,11 +1,12 @@
 import json
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from ..api.deps import get_current_user
+from ..core.rate_limit import limiter
 from ..db.session import get_db
 from ..models import User
 from ..schemas.auth import (
@@ -20,7 +21,8 @@ router = APIRouter(tags=["auth"])
 
 
 @router.post("/register")
-async def register(payload: RegisterRequest, db: Session = Depends(get_db)):
+@limiter.limit("3/minute")  # 3 registration attempts per minute
+async def register(request: Request, payload: RegisterRequest, db: Session = Depends(get_db)):
     if not payload.username:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Username is required."
@@ -69,7 +71,8 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(payload: LoginRequest, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")  # 5 login attempts per minute
+async def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)):
     if not payload.password:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Password is required."
@@ -97,7 +100,8 @@ async def login(payload: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/verify-face")
-async def verify_face(payload: VerifyFaceRequest):
+@limiter.limit("10/minute")  # 10 face verification attempts per minute
+async def verify_face(request: Request, payload: VerifyFaceRequest):
     if not payload.image_a_base64 or not payload.image_b_base64:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Both face images are required."
