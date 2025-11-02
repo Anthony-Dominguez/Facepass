@@ -41,10 +41,11 @@ export default function AuthPage() {
   const [authLoading, setAuthLoading] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
 
   const disableInputs = useMemo(
-    () => authLoading || !cameraReady,
-    [authLoading, cameraReady],
+    () => authLoading || !cameraReady || countdown !== null,
+    [authLoading, cameraReady, countdown],
   );
 
   const stopCamera = useCallback(() => {
@@ -169,6 +170,23 @@ export default function AuthPage() {
     [],
   );
 
+  const startCountdown = useCallback(() => {
+    return new Promise<void>((resolve) => {
+      setCountdown(3);
+      let count = 3;
+      const timer = setInterval(() => {
+        count -= 1;
+        if (count > 0) {
+          setCountdown(count);
+        } else {
+          clearInterval(timer);
+          setCountdown(null);
+          resolve();
+        }
+      }, 1000);
+    });
+  }, []);
+
   const handleSubmit = useCallback(async () => {
     setStatus(null);
     if (mode === "register" && username.trim().length === 0) {
@@ -189,6 +207,9 @@ export default function AuthPage() {
       });
       return;
     }
+
+    setAuthLoading(true);
+    await startCountdown();
 
     const imageBase64 = captureFrame();
     if (!imageBase64) {
@@ -271,6 +292,7 @@ export default function AuthPage() {
     parseErrorMessage,
     router,
     stopCamera,
+    startCountdown,
   ]);
 
   return (
@@ -314,6 +336,18 @@ export default function AuthPage() {
                   {cameraError
                     ? cameraError
                     : "Initializing camera… ensure access is granted."}
+                </div>
+              )}
+              {countdown !== null && (
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm">
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="text-8xl font-bold text-white animate-pulse">
+                      {countdown}
+                    </div>
+                    <div className="text-xl text-slate-300">
+                      Get ready...
+                    </div>
+                  </div>
                 </div>
               )}
               <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-slate-950 via-slate-950/70 to-transparent" />
@@ -404,11 +438,13 @@ export default function AuthPage() {
               disabled={disableInputs}
               className="mt-6 inline-flex w-full items-center justify-center rounded-2xl bg-sky-500 px-4 py-3 text-base font-semibold text-white shadow-lg shadow-sky-500/30 transition hover:bg-sky-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 disabled:cursor-not-allowed disabled:bg-slate-700"
             >
-              {authLoading
-                ? "Capturing & verifying…"
-                : mode === "register"
-                  ? "Capture & register"
-                  : "Capture & log in"}
+              {countdown !== null
+                ? `Get ready... ${countdown}`
+                : authLoading
+                  ? "Capturing & verifying…"
+                  : mode === "register"
+                    ? "Capture & register"
+                    : "Capture & log in"}
             </button>
             <canvas ref={canvasRef} className="hidden" />
 

@@ -26,3 +26,7 @@ web/.env.development.local
 web/.env.production.local
 web/.env.test.local
 !web/.env*.example
+
+# Documentation and markdown files
+*.md
+
