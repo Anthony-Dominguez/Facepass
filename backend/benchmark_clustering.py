@@ -4,22 +4,22 @@ Performance benchmark for clustering-based face search.
 Run this to see the real performance improvements with large user databases.
 """
 
-import json
 import time
 import numpy as np
 from typing import List
 from unittest.mock import Mock
 
+from app.services import embedding_storage
 from app.services.face_search import ClusterIndex
 from app.models import User
 
 
 def create_mock_user(user_id: int, embedding: list) -> Mock:
-    """Create a mock user with face embedding."""
+    """Create a mock user with encrypted face embedding."""
     user = Mock(spec=User)
     user.id = user_id
     user.username_hash = f"user_{user_id}_hash"
-    user.face_embedding = json.dumps(embedding)
+    user.face_embedding = embedding_storage.encrypt_embedding(embedding)
     user.password_hash = "hashed_password"
     return user
 
@@ -104,7 +104,7 @@ def benchmark_clustering(num_users: int = 2000, num_trials: int = 100):
         result = None
         for user in users:
             comparisons += 1
-            stored_embedding = np.array(json.loads(user.face_embedding))
+            stored_embedding = np.array(embedding_storage.decrypt_embedding(user.face_embedding))
             distance = np.linalg.norm(query_arr - stored_embedding)
             if distance <= 0.7:
                 result = user

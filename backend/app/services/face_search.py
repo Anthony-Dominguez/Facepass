@@ -7,6 +7,7 @@ import numpy as np
 from sqlalchemy.orm import Session
 
 from ..models import User
+from . import embedding_storage
 
 
 # Global clustering index (in-memory cache)
@@ -43,7 +44,7 @@ class ClusterIndex:
         embeddings = []
         for user in users:
             user_ids.append(user.id)
-            embedding = json.loads(user.face_embedding)
+            embedding = embedding_storage.decrypt_embedding(user.face_embedding)
             embeddings.append(embedding)
             self.user_embeddings[user.id] = np.array(embedding)
 
@@ -230,7 +231,7 @@ def greedy_face_search(
     # This is fast because it's vectorized numpy operations
     quick_scores = []
     for user in users:
-        stored_embedding = np.array(json.loads(user.face_embedding))
+        stored_embedding = np.array(embedding_storage.decrypt_embedding(user.face_embedding))
         l2_distance = np.linalg.norm(query - stored_embedding)
         quick_scores.append((user, l2_distance))
 
@@ -292,7 +293,7 @@ def get_search_stats(
 
     distances = []
     for user in users:
-        stored_embedding = np.array(json.loads(user.face_embedding))
+        stored_embedding = np.array(embedding_storage.decrypt_embedding(user.face_embedding))
         l2_distance = np.linalg.norm(query - stored_embedding)
         distances.append(l2_distance)
 

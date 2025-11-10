@@ -5,22 +5,22 @@ Run this script to see the actual performance improvements:
     python benchmark_face_search.py
 """
 
-import json
 import time
 import numpy as np
 from typing import List
 from unittest.mock import Mock
 
+from app.services import embedding_storage
 from app.services.face_search import greedy_face_search
 from app.models import User
 
 
 def create_mock_user(user_id: int, embedding: list) -> Mock:
-    """Create a mock user with face embedding."""
+    """Create a mock user with encrypted face embedding."""
     user = Mock(spec=User)
     user.id = user_id
     user.username_hash = f"user_{user_id}_hash"
-    user.face_embedding = json.dumps(embedding)
+    user.face_embedding = embedding_storage.encrypt_embedding(embedding)
     user.password_hash = "hashed_password"
     return user
 
@@ -37,7 +37,7 @@ def naive_face_search(
     query = np.array(query_embedding)
 
     for user in users:
-        stored_embedding = np.array(json.loads(user.face_embedding))
+        stored_embedding = np.array(embedding_storage.decrypt_embedding(user.face_embedding))
         distance = np.linalg.norm(query - stored_embedding)
         if distance <= threshold:
             return user

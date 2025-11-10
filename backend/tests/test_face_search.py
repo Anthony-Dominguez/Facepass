@@ -1,10 +1,10 @@
 """Unit tests for greedy face search algorithm."""
-import json
 import pytest
 import numpy as np
 from unittest.mock import Mock, MagicMock
 from sqlalchemy.orm import Session
 
+from app.services import embedding_storage
 from app.services.face_search import (
     greedy_face_search,
     greedy_face_check_duplicate,
@@ -14,11 +14,11 @@ from app.models import User
 
 
 def create_mock_user(user_id: int, embedding: list) -> Mock:
-    """Create a mock user with face embedding."""
+    """Create a mock user with encrypted face embedding."""
     user = Mock(spec=User)
     user.id = user_id
     user.username_hash = f"user_{user_id}_hash"
-    user.face_embedding = json.dumps(embedding)
+    user.face_embedding = embedding_storage.encrypt_embedding(embedding)
     user.password_hash = "hashed_password"
     return user
 

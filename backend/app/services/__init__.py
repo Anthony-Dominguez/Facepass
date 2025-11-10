@@ -1,3 +1,3 @@
-from . import face, face_search, security, vault
+from . import embedding_storage, face, face_search, security, vault
 
-__all__ = ["face", "face_search", "security", "vault"]
+__all__ = ["embedding_storage", "face", "face_search", "security", "vault"]

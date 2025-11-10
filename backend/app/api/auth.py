@@ -1,4 +1,3 @@
-import json
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -15,7 +14,7 @@ from ..schemas.auth import (
     TokenResponse,
     VerifyFaceRequest,
 )
-from ..services import face, face_search, security
+from ..services import embedding_storage, face, face_search, security
 
 router = APIRouter(tags=["auth"])
 
@@ -57,17 +56,17 @@ async def register(request: Request, payload: RegisterRequest, db: Session = Dep
             status_code=status.HTTP_400_BAD_REQUEST, detail="Face already registered."
         )
 
+    # Invalidate clustering index before adding user to prevent race condition
+    face_search.invalidate_cluster_index()
+
     user = User(
         username_hash=username_hash,
-        face_embedding=json.dumps(embedding),
+        face_embedding=embedding_storage.encrypt_embedding(embedding),
         password_hash=password_hash,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
-
-    # Invalidate clustering index so it rebuilds with new user
-    face_search.invalidate_cluster_index()
 
     return {"message": "Registration successful.", "user_id": user.id}
 
